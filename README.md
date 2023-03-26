@@ -7,6 +7,6 @@ This is an example of the Interactive Lithology Optimization using SciPy optimiz
 >
 This is an example of the Interactive Pickett Plot using Panel again.
 >
->![Geolog_Image](Picket_ipwidgets.gif)
+>![Geolog_Image2](Picket_ipywidgets.gif)
 >
 For our Juputer Notebook we can use IPwidedgets for the interactive plots, but outside of Jupyter Notebooks we use Panel.
