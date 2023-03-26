@@ -1,0 +1,22 @@
+# spec : 
+LANGUAGE = PYTHON
+MODE:  ARG:     VAR:     TYPE:     REPEAT: DEFAULT:              VALIDATION: LOCATION: UNIT:    VISIBLE: TAB_LABEL: COMMENT=
+#====  ====     ====     =====     ======= ========              =========== ========= =====    ======== ========== ========                                        
+INPUT  FILE_IN  file_in  FILE      ""      ""                    ""          ""        ""       TRUE     ""         "Input table (pipe)."
+INPUT  FILE_OUT file_out FILE      ""      ""                    ""          ""        ""       TRUE     ""         "Output table (pipe)."
+INPUT  SET_IN   set_in   ALPHA*16  ""      WIRE                  ""          PARAMETER ALPHA*16 TRUE     ""         ""
+INPUT  SET_OUT  set_out  ALPHA*16  ""      WIRE                  ""          PARAMETER ALPHA*16 TRUE     ""         ""
+IN_OUT M        m        NAME_REAL ""      2.0                   ""          CONSTANT  ""       TRUE     ""         "Cementation Factor 'm'"
+IN_OUT N        n        NAME_REAL ""      1.9                   ""          CONSTANT  ""       TRUE     ""         "Saturation Exponent 'n'"
+IN_OUT RW       rw       NAME_REAL ""      .015                  ""          CONSTANT  OHMM     TRUE     ""         "Resistivity of Water 'Rw'"
+INPUT  DEPTH    depth    NAME_REAL ""      DEPTH                 ""          LOG       FEET     TRUE     ""         "Downhole depth"
+INPUT  ILD      ild      NAME_REAL ""      RT                    ""          LOG       OHMM     TRUE     ""         "Deep Induction Standard Processed Resistivity"
+INPUT  RHOB     rhob     NAME_REAL ""      RHOB                  ""          LOG       G/C3     TRUE     ""         "Bulk Density"
+INPUT  CNL      cnl      NAME_REAL ""      NPHI                  ""          LOG       V/V      TRUE     ""         "Compensated Neutron Log"
+INPUT  GR       gr       NAME_REAL ""      GR                    ""          LOG       GAPI     TRUE     ""         "Gamma Ray"
+INPUT  PHIT     phit     NAME_REAL ""      PHIT                  ""          LOG       V/V      TRUE     ""         "Total Porosity"
+INPUT  RHOMAA   rhomaa   NAME_REAL ""      OPT.RHOMATRIX_EST_KNN ""          LOG       G/C3     TRUE     ""         "Rho Matrix"
+OUTPUT ILLITE   illite   NAME_REAL ""      VOL_ILLITE            ""          LOG       V/V      TRUE     ""         "Volume of Illite"
+OUTPUT QUARTZ   quartz   NAME_REAL ""      VOL_QUARTZ            ""          LOG       V/V      TRUE     ""         "Volume of Quartz"
+OUTPUT CALCITE  calcite  NAME_REAL ""      VOL_CALCITE           ""          LOG       V/V      TRUE     ""         "Volume of Calcite"
+OUTPUT DOLOMITE dolomite NAME_REAL ""      VOL_DOLOMITE          ""          LOG       V/V      TRUE     ""         "Volume of Dolomite"

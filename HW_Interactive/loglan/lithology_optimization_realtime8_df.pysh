@@ -1,0 +1,1741 @@
+#!/usr/bin/env python3
+# python loglan
+# When referencing Geolog variables in a Python script, names must always be lower case.
+
+# Imports
+import geolog
+
+
+import numpy as np
+import pandas as pd
+import panel as pn
+pn.extension()
+
+#pn.extension(sizing_mode="stretch_width",raw_css=[css])
+pn.extension()
+
+import matplotlib.pyplot as plt
+
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.ticker as ticker
+from bokeh.models.formatters import PrintfTickFormatter
+from bokeh.models.widgets import Button
+import sys
+
+from scipy.optimize import minimize
+
+
+
+
+
+def Plot_gd(GD_dolo,GR_dolo,GR_calc,tools,lith_option,illite_option):
+
+
+    '''
+    # =============================================================================
+    # # ===========================================================================
+    # # #--------------------------------------------------------------------------
+    # ##
+    # ##            Start Code for Scipy Optimization using minimization
+    # ##
+    # # #--------------------------------------------------------------------------
+    # # ===========================================================================
+    # =============================================================================
+    '''
+    VOL_QUARTZ = []
+    VOL_CALCITE = []
+    VOL_DOLO = []
+    porden =[]
+    VOL_ILLITE = []
+    tnph = []
+    #bvw = []
+    #bvo=[]
+    #swt = []
+
+    rhob_theoretical = []
+    tnph_theoretical = []
+    gr_theoretical   = []
+    error = []
+
+
+
+    if tools == 'Neutron_Density':    
+        #log Data
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + FD*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT             
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   GD_dolo   *y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) + 1.0*PHIT)
+                gr_theoretical.append((160*illite +  11*x     +   8*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + FD*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT  
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo   *z)*(1-PHIT) + FD*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  11*y     +   8*z)        *(1-PHIT) + 0.0*PHIT)
+
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9) / (3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9) / (3.0 - 1.9)
+            tnph_norm = (cnl[k] - (-0.05)) / (0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05)) / (0.6 - (-0.05))     
+
+            error.append(0.5*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo))/(PHIT))
+
+    elif tools == 'Neutron_Density_GR': 
+
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + 1.2*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT    
+                    GR_theoretical   = (160*illite + GR_calc*xy[0] + GR_dolo*xy[1])*(1-PHIT) + 0.0*PHIT
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    #{'type': 'eq',   'fun': lambda x: (illite + x[0] + x[1])*(1-PHIT) + PHIT - 1}, # sum of xy[0], xy[1] must be equal to 1 
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   2.85*y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) +    PHIT)
+                gr_theoretical.append((160*illite +  GR_calc*x     +   GR_dolo*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + 1.2*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT 
+                        GR_theoretical   = (160*illite + 1*xy[0] + GR_calc*xy[1] + GR_dolo*xy[2])*(1-PHIT) + 0.0*PHIT
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo*z)*(1-PHIT) + 1.2*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  GR_calc*y     +   GR_dolo*z)        *(1-PHIT) + 0.0*PHIT)
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9)/(3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9)/(3.0 - 1.9)
+            tnph_norm = ( cnl[k] - (-0.05))/(0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05))/(0.6 - (-0.05))    
+            gr_norm = ( gr[k] -  0)/(150 - 0)
+            gr_norm_theo = (gr_theoretical[k] - 0)/(150 - 0)    
+
+
+            error.append(0.333*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo)+(gr_norm-gr_norm_theo))/(PHIT))
+    
+    ######fig, axs = plt.subplot_mosaic([['left', 'right'],['middle','middle'],['bottom', 'bottom']])
+    #fig, axs = plt.subplot_mosaic([['left', 'middle','right'],['bottom', 'bottom','bottom']])
+    fig, axs = plt.subplot_mosaic([['farleft','left', 'right','farright'],['middlel','middlel','middle','middle']])
+
+                              #constrained_layout=True)
+
+    #fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(7, 7))
+    fig.suptitle('Lithology from Logs',color='blue' , fontsize=16)
+    fig.subplots_adjust(top=0.92,wspace=0.25, hspace =.25)
+    fig.set_figheight(8)
+    fig.set_figwidth(9)
+   
+
+    y=np.array(depth)
+
+
+    axs['farleft'].plot(gr, y,'-g', lw=3, label= 'GR')
+    #axs['farleft'].plot(gr_theoretical, y,'-k',lw=1, label= 'Pred GR')
+    axs['farleft'].axvline(x=GR_calc,  color='b', linestyle='-', label= 'GR Calc')
+    axs['farleft'].axvline(x=GR_dolo,  color='g', linestyle='-.', label= 'GR Dolo')
+    axs['farleft'].set_title("GR",color='blue')
+    axs['farleft'].set_xlabel("GR",color='blue')
+    axs['farleft'].set_xlim(0, 80)
+    axs['farleft'].fill_betweenx(y,gr,gr_theoretical, color='yellow')#, label= 'VOL_DOLO')
+    axs['farleft'].legend()
+    axs['farleft'].invert_yaxis()
+    axs['farleft'].grid(True)
+    
+    
+    
+    # Depth Plot 
+    axs['left'].plot(phit, y,'-r', lw=1)#, label= 'PHIT')
+    axs['left'].plot(bvw, y,'-k', lw=1)#, label= 'BVW')
+    axs['left'].set_title("Bulk Volume Plot",color='blue')    
+    axs['left'].set_xlabel("BVO/BVW",color='blue')
+    axs['left'].set_ylabel("Depth",color='blue')
+    axs['left'].set_xlim(0.5, 0.0)
+    axs['left'].set_ylim(max(y), min(y))
+    axs['left'].fill_betweenx(y,phit,bvw, color='green', label= 'BVO')
+    axs['left'].fill_betweenx(y,bvw,0, color='cyan', label= 'BVW')
+    #axs['left'].legend()
+    axs['left'].grid()
+    axs['left'].get_yaxis().set_visible(False)
+
+    
+    
+    # Lithology
+    quartz=np.array(VOL_QUARTZ)
+    calcite=np.array(VOL_CALCITE)
+    dolomite=np.array(VOL_DOLO)
+    illite=np.array(VOL_ILLITE)
+  
+    axs['right'].plot(illite, y,'-k',lw=2)
+    axs['right'].plot(illite+quartz, y,'-k',lw=2)
+    axs['right'].plot(illite+quartz+calcite, y,'-k',lw=1)
+    axs['right'].plot(illite+quartz+calcite+dolomite, y,'-k')
+    axs['right'].set_title("Lithology",color='blue')    
+    axs['right'].set_xlim(0, 1)
+    axs['right'].set_ylim(max(y), min(y))
+    axs['right'].set_xlabel(('Lithology'), color='blue')
+    axs['right'].fill_betweenx(y,0,illite, facecolor='#d1d1d1' ,hatch='.-.-',label= 'VOL_ILLITE')
+    axs['right'].fill_betweenx(y,illite,illite+quartz, facecolor='#ffff00' ,hatch='..',label= 'VOL_QUARTZ')
+    axs['right'].fill_betweenx(y,illite+quartz,illite+quartz+calcite, facecolor='#00ffff' ,hatch='++',label= 'VOL_CALCITE')
+    axs['right'].fill_betweenx(y,illite+quartz+calcite,illite+quartz+calcite+dolomite, facecolor='#00ff00', hatch='--//', label= 'VOL_DOLO')
+    axs['right'].fill_betweenx(y,illite+quartz+calcite+dolomite,1,color='black', label= 'PHIT')
+    #axs['right'].legend()
+    axs['right'].invert_yaxis()
+    axs['right'].grid(True)
+    axs['right'].get_yaxis().set_visible(False)
+
+    
+    # Error Theoretical vs. Actual normalized logs
+    axs['farright'].plot(error, y,'-r', lw=1, label= 'Error')
+    axs['farright'].set_xlabel("Calculated Error",color='black')
+    axs['farright'].set_xlim(0, 1.0)
+    #axs['farright'].fill_betweenx(y,error,0.15, color='pink')#, label= 'VOL_DOLO')
+    axs['farright'].set_title("Error",color='blue')
+    axs['farright'].set_xlabel("Error",color='blue')
+    #axs['farright'].legend()
+    axs['farright'].invert_yaxis()
+    axs['farright'].grid(True)
+    axs['farright'].get_yaxis().set_visible(False)
+
+    
+    
+    axs['middlel'].scatter(cnl, rhob, s=25, c = gr, cmap = "rainbow")
+    axs['middlel'].plot(CNL_chart2, RHOB_chart2,'k-')
+    axs['middlel'].set_xlim(-0.1, 0.55)
+    axs['middlel'].set_ylim(2.9, 1.9)
+    #axs['middle'].gca().invert_yaxis()
+    axs['middlel'].set_title("Cross Plot Data Colored by GR", color='blue')
+    axs['middlel'].set_ylabel('RHOB', color='blue')
+    axs['middlel'].set_xlabel('Neutron Porosity', color = 'blue')
+    axs['middlel'].grid(True)
+    #axs['middle'].show()    
+
+    
+    # Pickett Plot
+    axs['middle'].loglog(ild,phit, 'ro')
+    axs['middle'].set_xlim(0.01,1000)
+    axs['middle'].set_ylim(0.01,1)
+    axs['middle'].set_title('Pickett Plot', color = 'blue')
+    axs['middle'].set_ylabel('PHIT [v/v]', color = 'blue')
+    axs['middle'].set_xlabel('ILD [ohmm]', color = 'blue')
+    axs['middle'].grid()
+    ######axs['middle'].xaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+    ######axs['middle'].yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))   
+    
+    #calculate the saturation lines
+    sw_plot=(1.0,0.8,0.6,0.4,0.2)
+    phit_plot=(0.01,1)
+    rt_plot=np.zeros((len(sw_plot),len(phit_plot)))
+
+    for i in range (0,len(sw_plot)):
+        for j in range (0,len(phit_plot)):
+            rt_result=((rw)/(sw_plot[i]**n)*(1/(phit_plot[j]**m)))
+            rt_plot[i,j]=rt_result      
+    for i in range(0,len(sw_plot)):
+        axs['middle'].plot(rt_plot[i],phit_plot, linewidth=2, label='SW '+str(int(sw_plot[i]*100))+'%')
+        #axs['middle'].legend (loc='best')
+    axs['middle'].grid(True, which='both',ls='-' ,color='gray')
+
+    
+    phit_buck_plot = (0.05,0.07,0.1,0.15,0.2,0.25,0.3,0.35)
+    sw_buck_plot   = (1,0.75,0.5,0.33,0.25,0.2,0.16,0.14)  
+          
+    return fig
+
+
+def Plot_gd2(GD_dolo,GR_dolo,GR_calc,tools,lith_option,illite_option):
+
+
+    '''
+    # =============================================================================
+    # # ===========================================================================
+    # # #--------------------------------------------------------------------------
+    # ##
+    # ##            Start Code for Scipy Optimization using minimization
+    # ##
+    # # #--------------------------------------------------------------------------
+    # # ===========================================================================
+    # =============================================================================
+    '''
+    VOL_QUARTZ = []
+    VOL_CALCITE = []
+    VOL_DOLO = []
+    porden =[]
+    VOL_ILLITE = []
+    tnph = []
+    #bvw = []
+    #bvo=[]
+    #swt = []
+
+    rhob_theoretical = []
+    tnph_theoretical = []
+    gr_theoretical   = []
+    error = []
+
+
+
+    if tools == 'Neutron_Density':    
+        #log Data
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + FD*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT             
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   GD_dolo   *y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) + 1.0*PHIT)
+                gr_theoretical.append((160*illite +  11*x     +   8*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + FD*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT  
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo   *z)*(1-PHIT) + FD*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  11*y     +   8*z)        *(1-PHIT) + 0.0*PHIT)
+
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9) / (3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9) / (3.0 - 1.9)
+            tnph_norm = (cnl[k] - (-0.05)) / (0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05)) / (0.6 - (-0.05))     
+
+            error.append(0.5*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo))/(PHIT))
+
+    elif tools == 'Neutron_Density_GR': 
+
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + 1.2*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT    
+                    GR_theoretical   = (160*illite + GR_calc*xy[0] + GR_dolo*xy[1])*(1-PHIT) + 0.0*PHIT
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    #{'type': 'eq',   'fun': lambda x: (illite + x[0] + x[1])*(1-PHIT) + PHIT - 1}, # sum of xy[0], xy[1] must be equal to 1 
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   2.85*y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) +    PHIT)
+                gr_theoretical.append((160*illite +  GR_calc*x     +   GR_dolo*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + 1.2*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT 
+                        GR_theoretical   = (160*illite + 1*xy[0] + GR_calc*xy[1] + GR_dolo*xy[2])*(1-PHIT) + 0.0*PHIT
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo*z)*(1-PHIT) + 1.2*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  GR_calc*y     +   GR_dolo*z)        *(1-PHIT) + 0.0*PHIT)
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9)/(3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9)/(3.0 - 1.9)
+            tnph_norm = ( cnl[k] - (-0.05))/(0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05))/(0.6 - (-0.05))    
+            gr_norm = ( gr[k] -  0)/(150 - 0)
+            gr_norm_theo = (gr_theoretical[k] - 0)/(150 - 0)    
+
+
+            error.append(0.333*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo)+(gr_norm-gr_norm_theo))/(PHIT))
+
+
+
+
+"""
+# =============================================================================
+#          Read in Spine and Ribs only stored in Excel spreadsheet   
+# =============================================================================
+"""
+
+FD=1.1
+
+# Load data from geolog
+while geolog.gettable():
+    
+    # Put your code here !!!
+    df_log = pd.DataFrame({'DEPTH':depth, 'PHIT':phit, 'ILD':ild , 'GR':gr, 'CNL':cnl, 'RHOB':rhob , 'RHOMAA':rhomaa})
+    #df_log.head(80)
+          
+    phit = np.array(df_log['PHIT'])
+    ild  = np.array(df_log['ILD'])
+    #print('bvw =',bvw)
+    rhob  = np.array(df_log['RHOB'])
+    cnl  = np.array(df_log['CNL'])
+    gr  = np.array(df_log['GR'])
+    rhomaa  = np.array(df_log['RHOMAA'])
+
+    bvw = []
+    bvo=[]
+    swt = []
+
+
+    #log Data
+    for k in range(0,len(df_log) ,1):  
+
+        TNPH    = cnl[k]
+        RHOB2   = rhob[k]
+        GR      = gr[k]
+        ILD     = ild[k]
+        PHIT    = phit[k]
+        RHOMAA2 = rhomaa[k]
+
+        PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+        # =================================================================================
+        #       Saturation Calculations
+        # =================================================================================
+        BVW = PHIT * ( (1/PHIT**m) * (rw/ILD) )**(1/n)
+
+        if BVW > PHIT:
+            BVW=PHIT
+        else:
+            BVW=BVW
+
+        Swt = BVW/PHIT
+        BVO = (PHIT*(1-Swt))
+        bvo.append(BVO)
+        swt.append(Swt)    
+        bvw.append(BVW)    
+
+
+
+
+    # =================================================================================
+    #       Matrix Density Values
+    # =================================================================================
+    #GD_dolo = 2.85 # Rw from Pickett Plot
+    # =================================================================================
+
+    dologd_slider  = pn.widgets.FloatSlider(name="Matrix Density of Dolomite = ", start=2.84, end=2.9, step=0.01, value=2.85, format=PrintfTickFormatter(format='%.2f'))
+    dologr_slider  = pn.widgets.FloatSlider(name="GR Dolomite = ", start=0, end=30, step=1.0, value=8, format=PrintfTickFormatter(format='%.2f'))
+    calcgr_slider  = pn.widgets.FloatSlider(name='GR Calcite = ', start=0, end=30, step=1.0, value=11, format=PrintfTickFormatter(format='%.2f'))
+
+
+    # BUG: Name is not displayed despite documentation; https://github.com/holoviz/panel/issues/1313
+    #chart = pn.widgets.RadioBoxGroup(name = "Neutron Log", options = ['CNL_1pt0','CNL_1pt1','TNPH_1pt0', 'TNPH_1pt19'],format=PrintfTickFormatter(format='%.2f'))
+    rdbuttons1 = pn.widgets.RadioBoxGroup(name = 'Logging Tools to use in Lithology Optimization:', options = ['Neutron_Density','Neutron_Density_GR'])
+    rdbuttons2 = pn.widgets.RadioBoxGroup(name = 'Lithology Options:',options = ['Calcite_Dolomite','Quartz_Calcite_Dolomite'])
+    rdbuttons3 = pn.widgets.RadioBoxGroup(name = 'Illite Option (yes/no):',options = ['yes','no'])
+
+
+    #---------------------------------------------------------------------------
+    #      Chart Book CP based on Neutron log (all SLB either CNL or TNPH)
+    #--------------------------------------------------------------------------=
+    #file2 = r'./data/cnl_chart_1pt0.xlsx'
+    file2 = r'./data/cnl_chart_1pt1.xlsx'
+    #file2 = r'./data/tnph_chart_1pt0.xlsx'
+    #file2 = r'./data/tnph_chart_1pt19.xlsx'
+    
+    
+    df_chart2 = pd.read_excel(file2,index_col=False)
+    CNL_chart2  = df_chart2['CNL_chart']
+    RHOB_chart2= df_chart2['RHOB_chart']
+
+    GD_dolo = dologd_slider.value
+    GR_dolo = dologr_slider.value
+    GR_calc = calcgr_slider
+    tools=rdbuttons1.value
+    lith_option = rdbuttons2.value
+    illite_option = rdbuttons3.value
+
+    #Plot_gd2(GD_dolo,GR_dolo,GR_calc,tools,lith_option,illite_option)
+
+
+    '''
+    # =============================================================================
+    # # ===========================================================================
+    # # #--------------------------------------------------------------------------
+    # ##
+    # ##            Start Code for Scipy Optimization using minimization
+    # ##
+    # # #--------------------------------------------------------------------------
+    # # ===========================================================================
+    # =============================================================================
+    '''
+    VOL_QUARTZ = []
+    VOL_CALCITE = []
+    VOL_DOLO = []
+    porden =[]
+    VOL_ILLITE = []
+    tnph = []
+    #bvw = []
+    #bvo=[]
+    #swt = []
+
+    rhob_theoretical = []
+    tnph_theoretical = []
+    gr_theoretical   = []
+    error = []
+
+
+
+    if tools == 'Neutron_Density':    
+        #log Data
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + FD*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT             
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   GD_dolo   *y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) + 1.0*PHIT)
+                gr_theoretical.append((160*illite +  11*x     +   8*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + FD*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT  
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo   *z)*(1-PHIT) + FD*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  11*y     +   8*z)        *(1-PHIT) + 0.0*PHIT)
+
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9) / (3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9) / (3.0 - 1.9)
+            tnph_norm = (cnl[k] - (-0.05)) / (0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05)) / (0.6 - (-0.05))     
+
+            error.append(0.5*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo))/(PHIT))
+
+    elif tools == 'Neutron_Density_GR': 
+
+        for k in range(0,len(df_log) ,1):  
+
+            TNPH    = cnl[k]
+            RHOB2   = rhob[k]
+            GR      = gr[k]
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            RHOMAA2 = rhomaa[k]
+
+            PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+            # =================================================================================
+            #       Illite Option Calculations
+            # =================================================================================
+            if illite_option == 'yes':
+                vol_illite = -0.0424035 + 0.00562239*GR
+                illite     = vol_illite/(1-PHIT)
+            else:
+                vol_illite = 0
+                illite     = 0
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================
+            if lith_option == 'Calcite_Dolomite' :   
+
+
+                # Function to minimize
+                def optimization_function(xy):
+                    RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + 1.2*PHIT
+                    TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT    
+                    GR_theoretical   = (160*illite + GR_calc*xy[0] + GR_dolo*xy[1])*(1-PHIT) + 0.0*PHIT
+                    return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                # constraints
+
+                # bounds
+                #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                # Bounds x is 0 to 1 and y is 0 to 1
+                bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                            # constraints
+                cons = [
+                    {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                    #{'type': 'eq',   'fun': lambda x: (illite + x[0] + x[1])*(1-PHIT) + PHIT - 1}, # sum of xy[0], xy[1] must be equal to 1 
+                    {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                    {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                    ]
+
+
+                result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                xy_optimal = result.x
+
+                x = xy_optimal[0]
+                y = xy_optimal[1]
+
+
+                VOL_ILLITE.append(vol_illite)             
+                VOL_QUARTZ.append(0)
+                VOL_CALCITE.append(x*(1-PHIT))
+                VOL_DOLO.append(y*(1-PHIT))
+
+                rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   2.85*y)*(1-PHIT) + FD*PHIT)
+                tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) +    PHIT)
+                gr_theoretical.append((160*illite +  GR_calc*x     +   GR_dolo*y)        *(1-PHIT) + 0.0*PHIT)
+
+                #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+            # =============================================================================
+            # # ===========================================================================
+            # # #--------------------------------------------------------------------------
+            # ##
+            # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+            # ##
+            # # #--------------------------------------------------------------------------
+            # # ===========================================================================
+            # =============================================================================    
+            elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                if RHOMAA2 > 2.0:
+
+
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + 1.2*PHIT
+                        TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT 
+                        GR_theoretical   = (160*illite + 1*xy[0] + GR_calc*xy[1] + GR_dolo*xy[2])*(1-PHIT) + 0.0*PHIT
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    bnds = [(0, 1), (0, 1), (0, 1)]
+
+                    # constraints
+                    cons = [
+                        {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                    ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                    xy_optimal = result.x
+
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+                    z = xy_optimal[2]
+
+
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(x*(1-PHIT))
+                    VOL_CALCITE.append(y*(1-PHIT))
+                    VOL_DOLO.append(z*(1-PHIT))
+
+                    rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo*z)*(1-PHIT) + 1.2*PHIT)
+                    tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite + 1*x +  GR_calc*y     +   GR_dolo*z)        *(1-PHIT) + 0.0*PHIT)
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                else:
+
+                    VOL_ILLITE.append(vol_illite)
+                    VOL_QUARTZ.append(1-PHIT)
+                    VOL_CALCITE.append(0)
+                    VOL_DOLO.append(0)
+
+                    rhob_theoretical.append(0)
+                    tnph_theoretical.append(0)
+                    error.append(0)       
+
+
+            porden.append(PORDEN)   
+            tnph.append(TNPH)
+
+            rhob_norm = (rhob[k] - 1.9)/(3.0 - 1.9)
+            rhob_norm_theo = (rhob_theoretical[k] - 1.9)/(3.0 - 1.9)
+            tnph_norm = ( cnl[k] - (-0.05))/(0.6 - (-0.05))
+            tnph_norm_theo = (tnph_theoretical[k] - (-0.05))/(0.6 - (-0.05))    
+            gr_norm = ( gr[k] -  0)/(150 - 0)
+            gr_norm_theo = (gr_theoretical[k] - 0)/(150 - 0)    
+
+
+            error.append(0.333*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo)+(gr_norm-gr_norm_theo))/(PHIT))
+
+    quartz=np.array(VOL_QUARTZ)
+    calcite=np.array(VOL_CALCITE)
+    #print(calcite)
+    dolomite=np.array(VOL_DOLO)
+    illite=np.array(VOL_ILLITE)
+
+
+
+    pane = pn.interact(Plot_gd, GD_dolo = dologd_slider, GR_dolo = dologr_slider, GR_calc = calcgr_slider, tools=rdbuttons1, lith_option = rdbuttons2, illite_option = rdbuttons3)
+    #pane = pn.interact(Plot_sw,  m = m_ticker, n = n_ticker , rw = rw_ticker)#,width=1200, height=1200) 
+
+    logo = "./Geolog_Technical_update.png"
+    
+    # the key word 'save' can never be changed when the callback is triggered.
+    def update(event, save=True): 
+        print(event)
+        bvw  = calc_bvw(a,m, n, rw)    
+        #return save # which variable should take and use the return value? The calling Button?
+        return bvw # which variable should take and use the return value? The calling Button?
+
+    # the key word 'save' can never be changed when the callback is triggered.
+    def update333(m, n, rw): 
+        bvw = []
+        bvo=[]
+        swt = []
+
+        #log Data
+        for k in range(0,len(df_log) ,1):     
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            if PHIT < 0:
+                PHIT=0.01
+            else:
+                PHIT=PHIT
+
+            # =================================================================================
+            #       Saturation Calculations
+            # =================================================================================
+            BVW = PHIT * ( (1/PHIT**m) * (rw/ILD) )**(1/n)
+
+            if BVW > PHIT:
+                BVW=PHIT
+            else:
+                BVW=BVW
+
+            Swt = BVW/PHIT
+            BVO = (PHIT*(1-Swt))
+            bvo.append(BVO)
+            swt.append(Swt)    
+            bvw.append(BVW)    
+        
+        #return save # which variable should take and use the return value? The calling Button?
+        #return bvw,swt # which variable should take and use the return value? The calling Button?
+
+    button2 = pn.widgets.Button(name='Save Button')
+    button2.on_click(update333(m,n,rw))
+    
+    def button_callback():
+        '''
+        # =============================================================================
+        # # ===========================================================================
+        # # #--------------------------------------------------------------------------
+        # ##
+        # ##            Start Code for Scipy Optimization using minimization
+        # ##
+        # # #--------------------------------------------------------------------------
+        # # ===========================================================================
+        # =============================================================================
+        '''
+        VOL_QUARTZ = []
+        VOL_CALCITE = []
+        VOL_DOLO = []
+        porden =[]
+        VOL_ILLITE = []
+        tnph = []
+        #bvw = []
+        #bvo=[]
+        #swt = []
+
+        rhob_theoretical = []
+        tnph_theoretical = []
+        gr_theoretical   = []
+        error = []
+
+
+        '''
+        deptharray.append(Dep[k]);          # Taken from logs
+        RHOMAA_array.append(RHOMAA[k]);     # Taken from Log data
+        Porosity_array.append(Porosity[k]); # Taken from log data
+        porarray.append(por_est_knn);       # Calculated from logs 
+        rhoarray.append(rhomatrix_est_knn); # Calculated from logs
+        '''
+
+
+        if tools == 'Neutron_Density':    
+            #log Data
+            for k in range(0,len(df_log) ,1):  
+
+                TNPH    = cnl[k]
+                RHOB2   = rhob[k]
+                GR      = gr[k]
+                ILD     = ild[k]
+                PHIT    = phit[k]
+                RHOMAA2 = rhomaa[k]
+
+                PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+                # =================================================================================
+                #       Illite Option Calculations
+                # =================================================================================
+                if illite_option == 'yes':
+                    vol_illite = -0.0424035 + 0.00562239*GR
+                    illite     = vol_illite/(1-PHIT)
+                else:
+                    vol_illite = 0
+                    illite     = 0
+
+
+                # =============================================================================
+                # # ===========================================================================
+                # # #--------------------------------------------------------------------------
+                # ##
+                # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+                # ##
+                # # #--------------------------------------------------------------------------
+                # # ===========================================================================
+                # =============================================================================
+                if lith_option == 'Calcite_Dolomite' :   
+
+
+                    # Function to minimize
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + FD*PHIT
+                        TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT             
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                    # Bounds x is 0 to 1 and y is 0 to 1
+                    bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                                # constraints
+                    cons = [
+                        {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                        ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                    xy_optimal = result.x
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+
+
+                    VOL_ILLITE.append(vol_illite)             
+                    VOL_QUARTZ.append(0)
+                    VOL_CALCITE.append(x*(1-PHIT))
+                    VOL_DOLO.append(y*(1-PHIT))
+
+                    rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   GD_dolo   *y)*(1-PHIT) + FD*PHIT)
+                    tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) + 1.0*PHIT)
+                    gr_theoretical.append((160*illite +  11*x     +   8*y)        *(1-PHIT) + 0.0*PHIT)
+
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                # =============================================================================
+                # # ===========================================================================
+                # # #--------------------------------------------------------------------------
+                # ##
+                # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+                # ##
+                # # #--------------------------------------------------------------------------
+                # # ===========================================================================
+                # =============================================================================    
+                elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                    if RHOMAA2 > 2.0:
+
+
+                        def optimization_function(xy):
+                            RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + FD*PHIT
+                            TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT  
+                            return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2
+
+                        # constraints
+
+                        # bounds
+                        bnds = [(0, 1), (0, 1), (0, 1)]
+
+                        # constraints
+                        cons = [
+                            {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                            {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                            {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                            {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                        ]
+
+
+                        result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                        xy_optimal = result.x
+
+
+                        x = xy_optimal[0]
+                        y = xy_optimal[1]
+                        z = xy_optimal[2]
+
+
+
+                        VOL_ILLITE.append(vol_illite)
+                        VOL_QUARTZ.append(x*(1-PHIT))
+                        VOL_CALCITE.append(y*(1-PHIT))
+                        VOL_DOLO.append(z*(1-PHIT))
+
+                        rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo   *z)*(1-PHIT) + FD*PHIT)
+                        tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                        gr_theoretical.append((160*illite + 1*x +  11*y     +   8*z)        *(1-PHIT) + 0.0*PHIT)
+
+                        #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+
+                    else:
+
+                        VOL_ILLITE.append(vol_illite)
+                        VOL_QUARTZ.append(1-PHIT)
+                        VOL_CALCITE.append(0)
+                        VOL_DOLO.append(0)
+
+                        rhob_theoretical.append(0)
+                        tnph_theoretical.append(0)
+                        error.append(0)       
+
+
+                porden.append(PORDEN)   
+                tnph.append(TNPH)
+
+                rhob_norm = (rhob[k] - 1.9) / (3.0 - 1.9)
+                rhob_norm_theo = (rhob_theoretical[k] - 1.9) / (3.0 - 1.9)
+                tnph_norm = (cnl[k] - (-0.05)) / (0.6 - (-0.05))
+                tnph_norm_theo = (tnph_theoretical[k] - (-0.05)) / (0.6 - (-0.05))     
+
+                error.append(0.5*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo))/(PHIT))
+
+        elif tools == 'Neutron_Density_GR': 
+
+            for k in range(0,len(df_log) ,1):  
+
+                TNPH    = cnl[k]
+                RHOB2   = rhob[k]
+                GR      = gr[k]
+                ILD     = ild[k]
+                PHIT    = phit[k]
+                RHOMAA2 = rhomaa[k]
+
+                PORDEN  = (RHOMAA2 - RHOB2)/(RHOMAA2 - FD)
+
+                # =================================================================================
+                #       Illite Option Calculations
+                # =================================================================================
+                if illite_option == 'yes':
+                    vol_illite = -0.0424035 + 0.00562239*GR
+                    illite     = vol_illite/(1-PHIT)
+                else:
+                    vol_illite = 0
+                    illite     = 0
+
+
+                # =============================================================================
+                # # ===========================================================================
+                # # #--------------------------------------------------------------------------
+                # ##
+                # ##         Scipy Optimization for Lithology of Calcite and Dolomite
+                # ##
+                # # #--------------------------------------------------------------------------
+                # # ===========================================================================
+                # =============================================================================
+                if lith_option == 'Calcite_Dolomite' :   
+
+
+                    # Function to minimize
+                    def optimization_function(xy):
+                        RHOB_theoretical = (2.52*illite  + 2.71*xy[0] + GD_dolo*xy[1])*(1-PHIT) + 1.2*PHIT
+                        TNPH_theoretical = (0.247*illite + 0*xy[0] + 0.05375*xy[1])*(1-PHIT) + 1.0*PHIT    
+                        GR_theoretical   = (160*illite + GR_calc*xy[0] + GR_dolo*xy[1])*(1-PHIT) + 0.0*PHIT
+                        return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                    # constraints
+
+                    # bounds
+                    #bnds = [ (0.05, 1), (0, 1 - 0.05 - 0.05)]
+                    # Bounds x is 0 to 1 and y is 0 to 1
+                    bnds = [(0.0, 1.0),(0.0, 1.0)]
+
+                                # constraints
+                    cons = [
+                        {'type': 'eq',   'fun': lambda x: illite + x[0] + x[1] - 1}, # sum of xy[0], xy[1] must be equal to 1
+                        #{'type': 'eq',   'fun': lambda x: (illite + x[0] + x[1])*(1-PHIT) + PHIT - 1}, # sum of xy[0], xy[1] must be equal to 1 
+                        {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                        {'type': 'ineq', 'fun': lambda x: x[1] - 0.001} # xy[1] must be greater than or equal to 0.01
+                        ]
+
+
+                    result = minimize(optimization_function, x0=[0, 0], constraints = cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+                    xy_optimal = result.x
+
+                    x = xy_optimal[0]
+                    y = xy_optimal[1]
+
+
+                    VOL_ILLITE.append(vol_illite)             
+                    VOL_QUARTZ.append(0)
+                    VOL_CALCITE.append(x*(1-PHIT))
+                    VOL_DOLO.append(y*(1-PHIT))
+
+                    rhob_theoretical.append(( 2.52*illite  + 2.71*x   +   2.85*y)*(1-PHIT) + FD*PHIT)
+                    tnph_theoretical.append((0.247*illite  +  0*x     +   0.05375*y)*(1-PHIT) +    PHIT)
+                    gr_theoretical.append((160*illite +  GR_calc*x     +   GR_dolo*y)        *(1-PHIT) + 0.0*PHIT)
+
+                    #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                # =============================================================================
+                # # ===========================================================================
+                # # #--------------------------------------------------------------------------
+                # ##
+                # ##       Scipy Optimization for Lithology of Quartz, Cakcite and Dolomite
+                # ##
+                # # #--------------------------------------------------------------------------
+                # # ===========================================================================
+                # =============================================================================    
+                elif lith_option == 'Quartz_Calcite_Dolomite' :   
+                    if RHOMAA2 > 2.0:
+
+
+                        def optimization_function(xy):
+                            RHOB_theoretical = (2.52*illite + 2.65*xy[0] + 2.71*xy[1] + GD_dolo*xy[2])*(1-PHIT) + 1.2*PHIT
+                            TNPH_theoretical = (0.247*illite -0.05*xy[0] + 0*xy[1] + 0.05375*xy[2])*(1-PHIT) + 1.0*PHIT 
+                            GR_theoretical   = (160*illite + 1*xy[0] + GR_calc*xy[1] + GR_dolo*xy[2])*(1-PHIT) + 0.0*PHIT
+                            return (RHOB2 - RHOB_theoretical)**2 + (TNPH - TNPH_theoretical)**2 + (GR - GR_theoretical)**2
+
+                        # constraints
+
+                        # bounds
+                        bnds = [(0, 1), (0, 1), (0, 1)]
+
+                        # constraints
+                        cons = [
+                            {'type': 'eq', 'fun': lambda x: illite + x[0] + x[1] + x[2] - 1}, # sum of xy[0], xy[1], xy[2] must be equal to 1
+                            {'type': 'ineq', 'fun': lambda x: x[0] - 0.001}, # xy[0] must be greater than or equal to 0.01
+                            {'type': 'ineq', 'fun': lambda x: x[1] - 0.001}, # xy[1] must be greater than or equal to 0.01
+                            {'type': 'ineq', 'fun': lambda x: x[2] - 0.001}  # xy[1] must be greater than or equal to 0.01 
+                        ]
+
+
+                        result = minimize(optimization_function, x0=[0, 0, 0], constraints=cons, bounds=bnds, method='SLSQP', options={'maxiter': 1000})
+
+                        xy_optimal = result.x
+
+
+                        x = xy_optimal[0]
+                        y = xy_optimal[1]
+                        z = xy_optimal[2]
+
+
+
+                        VOL_ILLITE.append(vol_illite)
+                        VOL_QUARTZ.append(x*(1-PHIT))
+                        VOL_CALCITE.append(y*(1-PHIT))
+                        VOL_DOLO.append(z*(1-PHIT))
+
+                        rhob_theoretical.append((2.520*illite + 2.65*x + 2.71*y + GD_dolo*z)*(1-PHIT) + 1.2*PHIT)
+                        tnph_theoretical.append((0.247*illite - 0.05*x + 0.0*y  + 0.05373*z)*(1-PHIT) + 1.0*PHIT)
+                        gr_theoretical.append((160*illite + 1*x +  GR_calc*y     +   GR_dolo*z)        *(1-PHIT) + 0.0*PHIT)
+                        #print('Theoretical RHOB =' , round(rhob_theoretical, 3)  , ', RHOB =',RHOB2)                     
+
+
+                    else:
+
+                        VOL_ILLITE.append(vol_illite)
+                        VOL_QUARTZ.append(1-PHIT)
+                        VOL_CALCITE.append(0)
+                        VOL_DOLO.append(0)
+
+                        rhob_theoretical.append(0)
+                        tnph_theoretical.append(0)
+                        error.append(0)       
+
+
+                porden.append(PORDEN)   
+                tnph.append(TNPH)
+
+                rhob_norm = (rhob[k] - 1.9)/(3.0 - 1.9)
+                rhob_norm_theo = (rhob_theoretical[k] - 1.9)/(3.0 - 1.9)
+                tnph_norm = ( cnl[k] - (-0.05))/(0.6 - (-0.05))
+                tnph_norm_theo = (tnph_theoretical[k] - (-0.05))/(0.6 - (-0.05))    
+                gr_norm = ( gr[k] -  0)/(150 - 0)
+                gr_norm_theo = (gr_theoretical[k] - 0)/(150 - 0)    
+
+
+                error.append(0.333*abs((rhob_norm-rhob_norm_theo)+(tnph_norm-tnph_norm_theo)+(gr_norm-gr_norm_theo))/(PHIT))
+    
+       
+        quartz=np.array(VOL_QUARTZ)
+        calcite=np.array(VOL_CALCITE)
+        print(calcite)
+        dolomite=np.array(VOL_DOLO)
+        illite=np.array(VOL_ILLITE)
+        sys.exit()  # Stop the server
+    # Button to stop the server
+    button = Button(label="Stop", button_type="success")
+    button.on_click(button_callback)
+
+
+
+
+    def app():
+        #return pn.Row(pn.Column( button, logo, pane[0],button2,  sizing_mode="fixed"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        #return pn.Row(pn.Column( button, logo, pane[0],button2,  sizing_mode="stretch_height"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        #return pn.Row(pn.Column( button, logo, pane[0],button2, sizing_mode="stretch_both"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        return pn.Row(pn.Column( button, logo, pane[0],  sizing_mode="stretch_height"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+    
+    update333(m, n, rw)
+
+
+    pn.serve({"localhost:": app}, port=5006)
+
+    # Store data into geolog
+    geolog.puttable()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

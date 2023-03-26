@@ -1,0 +1,2 @@
+# spec : Macro saved from Expression Builder
+MACRO = "MACRO r35 (permeability,porosity)\n10**(0.538*LOG10(PERMEABILITY)-0.864*LOG10(POROSITY*100)+0.731)\n\n"

@@ -1,0 +1,16 @@
+# spec : 
+LANGUAGE = PYTHON
+MODE:  ARG:     VAR:     TYPE:     REPEAT: DEFAULT: VALIDATION: LOCATION: UNIT:    VISIBLE: TAB_LABEL: COMMENT=
+#====  ====     ====     =====     ======= ======== =========== ========= =====    ======== ========== ========                                        
+INPUT  FILE_IN  file_in  FILE      ""      ""       ""          ""        ""       TRUE     ""         "Input table (pipe)."
+INPUT  FILE_OUT file_out FILE      ""      ""       ""          ""        ""       TRUE     ""         "Output table (pipe)."
+INPUT  SET_IN   set_in   ALPHA*16  ""      WIRE     ""          PARAMETER ALPHA*16 TRUE     ""         ""
+INPUT  SET_OUT  set_out  ALPHA*16  ""      WIRE     ""          PARAMETER ALPHA*16 TRUE     ""         ""
+IN_OUT M        m        NAME_REAL ""      2.1      ""          CONSTANT  ""       TRUE     ""         "Cementation Factor 'm'"
+IN_OUT N        n        NAME_REAL ""      1.9      ""          CONSTANT  ""       TRUE     ""         "Saturation Exponent 'n'"
+IN_OUT RW       rw       NAME_REAL ""      .012     ""          CONSTANT  OHMM     TRUE     ""         "Resistivity of Water 'Rw'"
+INPUT  DEPTH    depth    NAME_REAL ""      DEPTH    ""          LOG       FEET     TRUE     ""         "Downhole depth"
+INPUT  ILD      ild      NAME_REAL ""      RT       ""          LOG       OHMM     TRUE     ""         "Deep Induction Standard Processed Resistivity"
+INPUT  PHIT     phit     NAME_REAL ""      PHIT     ""          LOG       V/V      TRUE     ""         "Total Porosity"
+OUTPUT BVW      bvw      NAME_REAL ""      BVW2     ""          LOG       V/V      TRUE     ""         "Bulk volume water"
+OUTPUT SWT      swt      NAME_REAL ""      SWT2     ""          LOG       V/V      TRUE     ""         "Total Water Saturation"

@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+# python loglan
+# When referencing Geolog variables in a Python script, names must always be lower case.
+
+# Imports
+import geolog
+
+
+import numpy as np
+import pandas as pd
+import panel as pn
+pn.extension()
+
+pn.extension(sizing_mode="stretch_width")
+
+import matplotlib.pyplot as plt
+
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.ticker as ticker
+from bokeh.models.formatters import PrintfTickFormatter
+from bokeh.models.widgets import Button
+import sys
+
+
+def Plot_sw(m, n, rw):
+    bvw = []
+    bvo=[]
+    swt = []
+
+    #log Data
+    for k in range(0,len(df_log) ,1):     
+        ILD     = ild[k]
+        PHIT    = phit[k]
+        if PHIT < 0:
+            PHIT=0.01
+        else:
+            PHIT=PHIT
+
+        # =================================================================================
+        #       Saturation Calculations
+        # =================================================================================
+        BVW = PHIT * ( (1/PHIT**m) * (rw/ILD) )**(1/n)
+
+        if BVW > PHIT:
+            BVW=PHIT
+        else:
+            BVW=BVW
+
+        Swt = BVW/PHIT
+        BVO = (PHIT*(1-Swt))
+        bvo.append(BVO)
+        swt.append(Swt)    
+        bvw.append(BVW)    
+
+
+    fig, axs = plt.subplot_mosaic([['left', 'right'],['middle','middle'],['bottom', 'bottom']])
+                              #constrained_layout=True)
+    #fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(7, 7))
+    fig.suptitle('Saturations from Logs',color='blue' , fontsize=18)
+    fig.subplots_adjust(top=0.95,wspace=0.2, hspace =.1)
+    fig.set_figheight(10)
+    fig.set_figwidth(6)
+    
+    y=np.array(depth)
+
+    # Depth Plot 
+    axs['left'].plot(phit, depth,'-k', lw=1)#, label= 'PHIT')
+    #axs['left'].plot(phie, depth,'-k', lw=1)#, label= 'PHIE')
+    axs['left'].plot(bvw,  depth,'-k', lw=1)#, label= 'BVW')
+    axs['left'].set_xlabel("Bulk Volume Calculations",color='blue')
+    axs['left'].set_ylabel("Depth",color='blue')
+    axs['left'].set_xlim(0.5, 0.0)
+    #axs['left'].set_ylim(maxdepth, mindepth)
+    axs['left'].set_ylim(max(y), min(y))
+
+    #axs['left'].fill_betweenx(depth,phit,bvw, color='green', label= 'BVO')
+    #axs['left'].fill_betweenx(depth,bvw,0, color='cyan', label= 'BVW')
+    #axs['left'].fill_betweenx(depth,phit,phie, color='gray', label= 'CBW')
+    axs['left'].fill_betweenx(depth,phit,bvw, color='green', label= 'BVO')        
+    axs['left'].fill_betweenx(depth,bvw,0, color='cyan', label= 'BVW')
+    #axs['left'].legend()
+    axs['left'].grid()
+
+    # Depth Plot 
+    #plt.axhline(y=0.5, color='r', linestyle='-')
+    axs['right'].axvline(x=m,  color='r', linestyle='-', label= 'm')
+    axs['right'].axvline(x=n,  color='b', linestyle='-.', label= 'n')
+    axs['right'].set_xlabel("Electrical Properties",color='blue')
+    #axs['right'].set_ylabel("Depth",color='blue')
+    axs['right'].set_xlim(1, 3)
+    #axs['right'].set_ylim(maxdepth, mindepth)
+    axs['left'].set_ylim(max(y), min(y))
+    
+
+    #axs['right'].fill_betweenx(y,porarray,bvw, color='green', label= 'BVO')
+    #axs['right'].fill_betweenx(y,bvw,0, color='cyan', label= 'BVW')
+    axs['right'].legend()
+    axs['right'].grid()
+    #axs[0, 1].remove()  # don't display empty ax
+    axs['right'].get_yaxis().set_visible(False)
+
+
+    #axs['left'].sharey(axs['right'])
+    #axs['right'].sharey(axs['left'])
+
+    # Pickett Plot
+    axs['middle'].loglog(ild,phit, 'ro')
+    axs['middle'].set_xlim(0.01,1000)
+    axs['middle'].set_ylim(0.01,1)
+    axs['middle'].set_ylabel('PHIT [v/v]', color = 'blue')
+    axs['middle'].set_xlabel('ILD [ohmm]', color = 'blue')
+    axs['middle'].grid()
+    axs['middle'].xaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+    axs['middle'].yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))   
+
+    #calculate the saturation lines
+    sw_plot=(1.0,0.8,0.6,0.4,0.2)
+    phit_plot=(0.01,1)
+    rt_plot=np.zeros((len(sw_plot),len(phit_plot)))
+
+    for i in range (0,len(sw_plot)):
+        for j in range (0,len(phit_plot)):
+            rt_result=((rw)/(sw_plot[i]**n)*(1/(phit_plot[j]**m)))
+            rt_plot[i,j]=rt_result      
+    for i in range(0,len(sw_plot)):
+        axs['middle'].plot(rt_plot[i],phit_plot, linewidth=2, label='SW '+str(int(sw_plot[i]*100))+'%')
+        axs['middle'].legend (loc='best')
+    axs['middle'].grid(True, which='both',ls='-' ,color='gray')
+
+    phit_buck_plot = (0.05,0.07,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45)
+    sw_buck_plot   = (1,0.75,0.5,0.33,0.25,0.2,0.16,0.14,0.12,0.11)
+
+    # Buckles Plot
+    #ax3.plot(swt, porarray, 'bo')
+    #ax3.scatter(swt, porarray, bvw,c=bvw,  cmap="rainbow")
+    axs['bottom'].scatter(swt, phit,    marker='d',c=bvw,  cmap="gist_rainbow")
+    axs['bottom'].plot(sw_buck_plot,phit_buck_plot,  '--g', lw=6 , label= 'BVW Target')
+    axs['bottom'].set_xlim(0.0,1.0) 
+    axs['bottom'].set_ylim(0.0,0.45)
+    axs['bottom'].set_ylabel('PHIT [v/v]', color = 'blue')
+    axs['bottom'].set_xlabel('Swt [v/v]' , color = 'blue')
+    axs['bottom'].legend()
+    axs['bottom'].grid()
+
+    return fig
+
+def Plot_sw2(m, n, rw):
+
+    bvw = []
+    bvo=[]
+    swt = []
+
+    #log Data
+    for k in range(0,len(df_log) ,1):     
+        ILD     = ild[k]
+        PHIT    = phit[k]
+        if PHIT < 0:
+            PHIT=0.01
+        else:
+            PHIT=PHIT
+
+        # =================================================================================
+        #       Saturation Calculations
+        # =================================================================================
+        BVW = PHIT * ( (1/PHIT**m) * (rw/ILD) )**(1/n)
+
+        if BVW > PHIT:
+            BVW=PHIT
+        else:
+            BVW=BVW
+
+        Swt = BVW/PHIT
+        BVO = (PHIT*(1-Swt))
+        bvo.append(BVO)
+        swt.append(Swt)    
+        bvw.append(BVW)    
+
+
+    ######fig, axs = plt.subplot_mosaic([['left', 'right'],['middle','middle'],['bottom', 'bottom']])
+    #fig, axs = plt.subplot_mosaic([['left', 'middle','right'],['bottom', 'bottom','bottom']])
+    fig, axs = plt.subplot_mosaic([['left', 'middle','right']])
+
+                              #constrained_layout=True)
+
+    #fig, axs = plt.subplots(nrows=3, ncols=2, figsize=(7, 7))
+    fig.suptitle('Saturations from Logs',color='blue' , fontsize=16)
+    fig.subplots_adjust(top=0.90,wspace=0.2, hspace =.15)
+    fig.set_figheight(5)
+    fig.set_figwidth(14)
+
+
+    y=np.array(depth)
+
+    # Depth Plot 
+    axs['left'].plot(phit, y,'-r', lw=1)#, label= 'PHIT')
+    axs['left'].plot(bvw, y,'-k', lw=1)#, label= 'BVW')
+    axs['left'].set_title("Bulk Volume Plot",color='blue')    
+    axs['left'].set_xlabel("BVO/BVW",color='blue')
+    axs['left'].set_ylabel("Depth",color='blue')
+    axs['left'].set_xlim(0.5, 0.0)
+    axs['left'].set_ylim(max(y), min(y))
+    axs['left'].fill_betweenx(y,phit,bvw, color='green', label= 'BVO')
+    axs['left'].fill_betweenx(y,bvw,0, color='cyan', label= 'BVW')
+    axs['left'].legend()
+    axs['left'].grid()
+
+    # Depth Plot 
+    #plt.axhline(y=0.5, color='r', linestyle='-')
+    axs['right'].axvline(x=m,  color='r', linestyle='-', label= 'm')
+    axs['right'].axvline(x=n,  color='b', linestyle='-.', label= 'n')
+    axs['right'].set_title("m&n",color='blue')    
+    axs['right'].set_xlabel("Electrical Properties",color='blue')
+    #axs['right'].set_ylabel("Depth",color='blue')
+    axs['right'].set_xlim(1, 3)
+    axs['right'].set_ylim(max(y), min(y))
+    #axs['right'].fill_betweenx(y,porarray,bvw, color='green', label= 'BVO')
+    #axs['right'].fill_betweenx(y,bvw,0, color='cyan', label= 'BVW')
+    axs['right'].legend()
+    axs['right'].grid()
+    #axs[0, 1].remove()  # don't display empty ax
+
+    #axs['left'].sharey(axs['right'])
+    #axs['right'].sharey(axs['left'])
+
+    # Pickett Plot
+    axs['middle'].loglog(ild,phit, 'ro')
+    axs['middle'].set_xlim(0.01,1000)
+    axs['middle'].set_ylim(0.01,1)
+    axs['middle'].set_title('Pickett Plot', color = 'blue')
+    axs['middle'].set_ylabel('PHIT [v/v]', color = 'blue')
+    axs['middle'].set_xlabel('ILD [ohmm]', color = 'blue')
+    axs['middle'].grid()
+    ######axs['middle'].xaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+    ######axs['middle'].yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))   
+
+    #calculate the saturation lines
+    sw_plot=(1.0,0.8,0.6,0.4,0.2)
+    phit_plot=(0.01,1)
+    rt_plot=np.zeros((len(sw_plot),len(phit_plot)))
+
+    for i in range (0,len(sw_plot)):
+        for j in range (0,len(phit_plot)):
+            rt_result=((rw)/(sw_plot[i]**n)*(1/(phit_plot[j]**m)))
+            rt_plot[i,j]=rt_result      
+    for i in range(0,len(sw_plot)):
+        axs['middle'].plot(rt_plot[i],phit_plot, linewidth=2, label='SW '+str(int(sw_plot[i]*100))+'%')
+        axs['middle'].legend (loc='best')
+    axs['middle'].grid(True, which='both',ls='-' ,color='gray')
+
+
+    phit_buck_plot = (0.05,0.07,0.1,0.15,0.2,0.25,0.3,0.35)
+    sw_buck_plot   = (1,0.75,0.5,0.33,0.25,0.2,0.16,0.14)
+
+    return fig
+
+
+
+def save_bvw(bvw,swt):
+    bvw  = bvw    
+    swt  = swt
+    #print('save datsa1',bvw)
+    return bvw,swt
+
+
+
+# Load data from geolog
+while geolog.gettable():
+    
+    # Put your code here !!!
+    df_log = pd.DataFrame({ 'PHIT':phit, 'ILD':ild , 'DEPTH':depth})
+    #df_log.head(80)
+          
+    phit = np.array(df_log['PHIT'])
+    ild  = np.array(df_log['ILD'])
+    #print('bvw =',bvw)
+
+
+    #a_ticker  = pn.widgets.FloatSlider(name="Archie 'a' = ", start=0.5, end=1.5, step=0.1, value=a, format=PrintfTickFormatter(format='%.3f'))
+    m_ticker  = pn.widgets.FloatSlider(name="Cementation Exponent 'm' = ", start=1.00, end=3.00, step=0.01, value=m, format=PrintfTickFormatter(format='%.2f'))
+    n_ticker  = pn.widgets.FloatSlider(name="Saturation Exponent 'n' = ", start=1.00, end=3.00, step=0.01, value=n, format=PrintfTickFormatter(format='%.2f'))
+    rw_ticker = pn.widgets.FloatSlider(name='Rw = ', start=0.01, end=0.1, step=0.001, value=rw, format=PrintfTickFormatter(format='%.3f'))
+
+    pane = pn.interact(Plot_sw,  m = m_ticker, n = n_ticker , rw = rw_ticker)#,width=1200, height=1200) 
+
+    logo = "./Geolog_Technical_update.png"
+    
+    # the key word 'save' can never be changed when the callback is triggered.
+    def update(event, save=True): 
+        print(event)
+        bvw  = calc_bvw(a,m, n, rw)    
+        #return save # which variable should take and use the return value? The calling Button?
+        return bvw # which variable should take and use the return value? The calling Button?
+
+    # the key word 'save' can never be changed when the callback is triggered.
+    def update333(m, n, rw): 
+        bvw = []
+        bvo=[]
+        swt = []
+
+        #log Data
+        for k in range(0,len(df_log) ,1):     
+            ILD     = ild[k]
+            PHIT    = phit[k]
+            if PHIT < 0:
+                PHIT=0.01
+            else:
+                PHIT=PHIT
+
+            # =================================================================================
+            #       Saturation Calculations
+            # =================================================================================
+            BVW = PHIT * ( (1/PHIT**m) * (rw/ILD) )**(1/n)
+
+            if BVW > PHIT:
+                BVW=PHIT
+            else:
+                BVW=BVW
+
+            Swt = BVW/PHIT
+            BVO = (PHIT*(1-Swt))
+            bvo.append(BVO)
+            swt.append(Swt)    
+            bvw.append(BVW)    
+        
+        #return save # which variable should take and use the return value? The calling Button?
+        #return bvw,swt # which variable should take and use the return value? The calling Button?
+
+    button2 = pn.widgets.Button(name='Save Button')
+    button2.on_click(update333(m,n,rw))
+    
+    def button_callback():
+       sys.exit()  # Stop the server
+    # Button to stop the server
+    button = Button(label="Stop", button_type="success")
+    button.on_click(button_callback)
+
+
+
+
+    def app():
+        #return pn.Row(pn.Column( button, logo, pane[0],button2,  sizing_mode="fixed"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        #return pn.Row(pn.Column( button, logo, pane[0],button2,  sizing_mode="stretch_height"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        #return pn.Row(pn.Column( button, logo, pane[0],button2, sizing_mode="stretch_both"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+        return pn.Row(pn.Column( button, logo, pane[0],  sizing_mode="stretch_height"), pn.layout.VSpacer(width=10),pane[1])#,height=2200)
+    
+    update333(m, n, rw)
+
+
+    pn.serve({"localhost:": app}, port=5006)
+
+    #print('Saved Data:',bvw,swt)
+ 
+ 
+
+
+
+    # Store data into geolog
+    geolog.puttable()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
