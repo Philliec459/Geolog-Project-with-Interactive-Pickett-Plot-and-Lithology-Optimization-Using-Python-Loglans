@@ -1,6 +1,8 @@
 # Geolog-Project-with-Interactive-Pickett-Plot-and-Lithology-Optimization-Using-Python-Loglans
 This repository includes a Geolog Project with Interactive Pickett Plot and Lithology Optimization performed within Geolog using python loglans.
-
+>
+>![Geolog_Image](Geolog_workspace.png)
+>
 This is an example of the Interactive Lithology Optimization using SciPy optimization to arrive at the final lithology where we are using Panel for the interactivity:
 >
 >![Geolog_Image](Interactive_lith.gif)
